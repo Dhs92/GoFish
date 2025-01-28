@@ -16,21 +16,36 @@ type User struct {
 	Password    string        `bson:"password"`
 	CreatedDate time.Time     `bson:"createdDate"`
 	Settings    UserSettings  `bson:"settings"`
+	Enabled     bool          `bson:"enabled"`
 }
 
 type UserSettings struct {
 	Theme         string `bson:"theme"`
 	Notifications bool   `bson:"notifications"`
+	Timezone      string `bson:"timezone"`
+	Locale        string `bson:"locale"`
+	StartOfWeek   string `bson:"startOfWeek"`
 }
 
-func (db *Database) CreateUser(ctx context.Context, name, email, pwHash string, settings UserSettings) (*User, error) {
+func InitialUserPreferences() UserSettings {
+	return UserSettings{
+		Theme:         "light",
+		Notifications: true,
+		Timezone:      "UTC",
+		Locale:        "en-US",
+		StartOfWeek:   "Sunday",
+	}
+}
+
+func (db *Database) CreateUser(ctx context.Context, name, email, pwHash string) (*User, error) {
 	now := time.Now()
 	user := &User{
 		Name:        name,
 		Email:       email,
 		Password:    pwHash,
 		CreatedDate: now,
-		Settings:    settings,
+		Settings:    InitialUserPreferences(),
+		Enabled:     true,
 	}
 
 	collection := db.database.Collection("users")

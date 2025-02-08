@@ -16,8 +16,12 @@ type StockItem struct {
 	Brand    *string       `bson:"brand,omitempty"`
 }
 
+func (s *StockItem) CollectionName() string {
+	return "stockItems"
+}
+
 func (db *Database) CreateStockItemIndexes(ctx context.Context) error {
-	collection := db.database.Collection("stockItems")
+	collection := db.Database.Collection("stockItems")
 	indexModel := mongo.IndexModel{
 		Keys: bson.M{
 			"owner": 1, // Create an ascending index on the Owner field
@@ -25,4 +29,14 @@ func (db *Database) CreateStockItemIndexes(ctx context.Context) error {
 	}
 	_, err := collection.Indexes().CreateOne(ctx, indexModel)
 	return err
+}
+
+func NewStockItem(owner bson.ObjectID, name string, itemType string, quantity float64, brand *string) *StockItem {
+	return &StockItem{
+		Owner:    owner,
+		Name:     name,
+		Type:     itemType,
+		Quantity: quantity,
+		Brand:    brand,
+	}
 }

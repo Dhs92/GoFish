@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"errors"
+	"net/mail"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -11,12 +13,12 @@ import (
 
 type User struct {
 	ID          bson.ObjectID `bson:"_id,omitempty"` // MongoDB ObjectID
-	Name        string        `bson:"name"`
-	Email       string        `bson:"email"`
-	Password    string        `bson:"password"`
-	CreatedDate time.Time     `bson:"createdDate"`
-	Settings    UserSettings  `bson:"settings"`
-	Enabled     bool          `bson:"enabled"`
+	Name        string        `bson:"name,omitempty"`
+	Email       string        `bson:"email,omitempty"`
+	Password    string        `bson:"password,omitempty"`
+	CreatedDate bson.DateTime `bson:"createdDate,omitempty"`
+	Settings    UserSettings  `bson:"settings,omitempty"`
+	Enabled     bool          `bson:"enabled,omitempty"`
 }
 
 type UserSettings struct {
@@ -25,6 +27,19 @@ type UserSettings struct {
 	Timezone      string `bson:"timezone"`
 	Locale        string `bson:"locale"`
 	StartOfWeek   string `bson:"startOfWeek"`
+}
+
+func (u *User) CollectionName() string {
+	return "users"
+}
+
+func (u *User) ObjectID() bson.ObjectID {
+	return u.ID
+}
+
+func VerifyEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }
 
 func InitialUserPreferences() UserSettings {
@@ -37,31 +52,24 @@ func InitialUserPreferences() UserSettings {
 	}
 }
 
-func (db *Database) CreateUser(ctx context.Context, name, email, pwHash string) (*User, error) {
-	now := time.Now()
-	user := &User{
-		Name:        name,
-		Email:       email,
-		Password:    pwHash,
-		CreatedDate: now,
-		Settings:    InitialUserPreferences(),
-		Enabled:     true,
+// NewUser creates a new User object with the provided name, email, and password hash. It returns an error if the email address is invalid.
+func NewUser(name string, email string, pwHash string) (*User, error) {
+	if VerifyEmail(email) {
+		return &User{
+			Name:        name,
+			Email:       email,
+			Password:    pwHash,
+			CreatedDate: bson.NewDateTimeFromTime(time.Now()),
+			Settings:    InitialUserPreferences(),
+			Enabled:     true,
+		}, nil
+	} else {
+		return nil, errors.New("invalid email address")
 	}
-
-	collection := db.database.Collection("users")
-	result, err := collection.InsertOne(ctx, user)
-	if err != nil {
-		return nil, err
-	}
-
-	id := result.InsertedID.(bson.ObjectID)
-	user.ID = id
-
-	return user, nil
 }
 
 func (db *Database) CreateUserIndexes(ctx context.Context) error {
-	collection := db.database.Collection("users")
+	collection := db.Database.Collection("users")
 	indexModel := mongo.IndexModel{
 		Keys: bson.M{
 			"email": 1, // Create an ascending index on the Email field
@@ -70,11 +78,5 @@ func (db *Database) CreateUserIndexes(ctx context.Context) error {
 	}
 
 	_, err := collection.Indexes().CreateOne(ctx, indexModel)
-	return err
-}
-
-func (db *Database) DeleteUser(ctx context.Context, userID bson.ObjectID) error {
-	collection := db.database.Collection("users")
-	_, err := collection.DeleteOne(ctx, bson.M{"_id": userID})
 	return err
 }

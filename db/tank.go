@@ -18,13 +18,13 @@ type Tank struct {
 }
 
 type Livestock struct {
-	ID       bson.ObjectID `bson:"_id,omitempty"` // LivestockID
-	Name     string        `bson:"name"`
-	Species  string        `bson:"species"`
-	Size     *float64      `bson:"size,omitempty"`
-	SizeUnit *string       `bson:"sizeUnit,omitempty"`
-	Birthday *time.Time    `bson:"birthday,omitempty"`
-	Colors   *string       `bson:"colors,omitempty"`
+	ID       bson.ObjectID  `bson:"_id,omitempty"` // LivestockID
+	Name     string         `bson:"name"`
+	Species  string         `bson:"species"`
+	Size     *float64       `bson:"size,omitempty"`
+	SizeUnit *string        `bson:"sizeUnit,omitempty"`
+	Birthday *bson.DateTime `bson:"birthday,omitempty"`
+	Colors   *[]string      `bson:"colors,omitempty"`
 }
 
 func NewTank(owner bson.ObjectID, name string, size float64, sizeUnit string) *Tank {
@@ -36,26 +36,47 @@ func NewTank(owner bson.ObjectID, name string, size float64, sizeUnit string) *T
 	}
 }
 
-func NewLivestock(name, species string, size *float64, sizeUnit *string, birthday *time.Time, colors *string) *Livestock {
+func NewLivestock(name string, species string, size *float64, sizeUnit *string, birthday *time.Time, colors *[]string) *Livestock {
 	return &Livestock{
 		Name:     name,
 		Species:  species,
 		Size:     size,
 		SizeUnit: sizeUnit,
-		Birthday: birthday,
-		Colors:   colors,
+		Birthday: func() *bson.DateTime {
+			if birthday == nil {
+				return nil
+			}
+			dt := bson.NewDateTimeFromTime(*birthday)
+			return &dt
+		}(),
+		Colors: colors,
 	}
 }
 
-func (db *Database) GetTank(ctx context.Context, tankID bson.ObjectID) (*Tank, error) {
-	collection := db.database.Collection("tanks")
+func (t *Tank) CollectionName() string {
+	return "tanks"
+}
+
+func (db *Database) CreateTankIndexes(ctx context.Context) error {
+	collection := db.Database.Collection("tanks")
+	indexModel := mongo.IndexModel{
+		Keys: bson.M{
+			"owner": 1, // Create an ascending index on the Owner field
+		},
+	}
+	_, err := collection.Indexes().CreateOne(ctx, indexModel)
+	return err
+}
+
+/* func (db *Database) GetTank(ctx context.Context, tankID bson.ObjectID) (*Tank, error) {
+	collection := db.Database.Collection("tanks")
 	var tank Tank
 	err := collection.FindOne(ctx, bson.M{"_id": tankID}).Decode(&tank)
 	return &tank, err
 }
 
 func (db *Database) GetTanks(ctx context.Context, owner bson.ObjectID) ([]Tank, error) {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	cursor, err := collection.Find(ctx, bson.M{"owner": owner})
 	if err != nil {
 		return nil, err
@@ -70,42 +91,42 @@ func (db *Database) GetTanks(ctx context.Context, owner bson.ObjectID) ([]Tank, 
 }
 
 func (db *Database) UpdateTank(ctx context.Context, tankID bson.ObjectID, tank *Tank) error {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": tankID}, bson.M{"$set": tank})
 
 	return err
 }
 
 func (db *Database) DeleteTank(ctx context.Context, tankID bson.ObjectID) error {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	_, err := collection.DeleteOne(ctx, bson.M{"_id": tankID})
 
 	return err
 }
 
 func (db *Database) AddLivestock(ctx context.Context, tankID bson.ObjectID, livestock *Livestock) error {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": tankID}, bson.M{"$push": bson.M{"livestock": livestock}})
 
 	return err
 }
 
 func (db *Database) RemoveLivestock(ctx context.Context, tankID bson.ObjectID, livestockID bson.ObjectID) error {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": tankID}, bson.M{"$pull": bson.M{"livestock": bson.M{"_id": livestockID}}})
 
 	return err
 }
 
 func (db *Database) UpdateLivestock(ctx context.Context, tankID bson.ObjectID, livestockID bson.ObjectID, livestock *Livestock) error {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": tankID, "livestock._id": livestockID}, bson.M{"$set": bson.M{"livestock.$": livestock}})
 
 	return err
 }
 
 func (db *Database) GetLivestock(ctx context.Context, tankID bson.ObjectID, livestockID bson.ObjectID) (*Livestock, error) {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	cursor, err := collection.Aggregate(ctx, mongo.Pipeline{
 		bson.D{{Key: "$match", Value: bson.M{"_id": tankID}}},
 		bson.D{{Key: "$unwind", Value: "$livestock"}},
@@ -127,7 +148,7 @@ func (db *Database) GetLivestock(ctx context.Context, tankID bson.ObjectID, live
 }
 
 func (db *Database) FindLivestockByName(ctx context.Context, ownerID bson.ObjectID, name string) ([]Tank, error) {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.D{{Key: "owner", Value: ownerID}}}},
@@ -161,19 +182,11 @@ func (db *Database) FindLivestockByName(ctx context.Context, ownerID bson.Object
 }
 
 func (db *Database) CreateTank(ctx context.Context, tank *Tank) error {
-	collection := db.database.Collection("tanks")
+	collection := db.Database.Collection("tanks")
 	_, err := collection.InsertOne(ctx, tank)
 
 	return err
 }
 
-func (db *Database) CreateTankIndexes(ctx context.Context) error {
-	collection := db.database.Collection("tanks")
-	indexModel := mongo.IndexModel{
-		Keys: bson.M{
-			"owner": 1, // Create an ascending index on the Owner field
-		},
-	}
-	_, err := collection.Indexes().CreateOne(ctx, indexModel)
-	return err
-}
+
+*/

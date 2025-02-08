@@ -3,13 +3,18 @@ package db
 import (
 	"context"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Database struct {
-	client   *mongo.Client
-	database *mongo.Database
+	Database *mongo.Database
+}
+
+type DocumentInterface interface {
+	CollectionName() string
+	ObjectID() bson.ObjectID
 }
 
 func Connect(ctx context.Context, uri, dbName string) (*Database, error) {
@@ -27,9 +32,29 @@ func Connect(ctx context.Context, uri, dbName string) (*Database, error) {
 
 	db := client.Database(dbName)
 	return &Database{
-		client:   client,
-		database: db,
+		Database: db,
 	}, nil
+}
+
+func (db *Database) Create(ctx context.Context, doc DocumentInterface) (*mongo.InsertOneResult, error) {
+	collection := db.Database.Collection(doc.CollectionName())
+	return collection.InsertOne(ctx, doc)
+}
+
+// Does not accept a document interface because it needs to be able to accept any filter
+func (db *Database) FindDocument(ctx context.Context, filter interface{}, collectionName string) *mongo.SingleResult {
+	collection := db.Database.Collection(collectionName)
+	return collection.FindOne(ctx, filter)
+}
+
+func (db *Database) Update(ctx context.Context, filter, update DocumentInterface) (*mongo.UpdateResult, error) {
+	collection := db.Database.Collection(filter.CollectionName())
+	return collection.UpdateOne(ctx, filter, update)
+}
+
+func (db *Database) Delete(ctx context.Context, filter DocumentInterface) (*mongo.DeleteResult, error) {
+	collection := db.Database.Collection(filter.CollectionName())
+	return collection.DeleteOne(ctx, filter)
 }
 
 func (db *Database) CreateCollections(ctx context.Context) error {
@@ -37,7 +62,7 @@ func (db *Database) CreateCollections(ctx context.Context) error {
 
 	for _, collectionName := range collections {
 		// Ensure collection is created
-		if err := db.database.CreateCollection(ctx, collectionName); err != nil && !mongo.IsDuplicateKeyError(err) {
+		if err := db.Database.CreateCollection(ctx, collectionName); err != nil && !mongo.IsDuplicateKeyError(err) {
 			return err
 		}
 	}
@@ -45,6 +70,8 @@ func (db *Database) CreateCollections(ctx context.Context) error {
 	return nil
 }
 
+// CreateIndexes creates indexes for all collections in the database.
+// It returns an error if any index creation fails.
 func (db *Database) CreateIndexes(ctx context.Context) error {
 	if err := db.CreateUserIndexes(ctx); err != nil {
 		return err

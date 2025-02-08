@@ -16,4 +16,33 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 package main
 
-func main() {}
+import (
+	"context"
+
+	"github.com/Dhs92/GoFish/db"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Create a new database connection
+	database, err := db.Connect(ctx, "mongodb://localhost:27017", "aquarium")
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a new user
+	user, err := db.NewUser("Test User", "test@email.com", "password")
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Insert the user into the database
+	_, err = database.Create(ctx, user)
+
+	if err != nil {
+		panic(err)
+	}
+}

@@ -1,16 +1,18 @@
 package config
 
 import (
-	"log/slog"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	LogLevel slog.Level     `json:"logLevel"`
+	LogLevel zerolog.Level  `json:"logLevel"`
 	Server   ServerConfig   `json:"server"`
 	Database DatabaseConfig `json:"database"`
 }
@@ -34,7 +36,7 @@ func defaultConfig() Config {
 			Host: "0.0.0.0",
 			Port: 8080,
 		},
-		LogLevel: slog.LevelInfo,
+		LogLevel: zerolog.InfoLevel,
 		Database: DatabaseConfig{
 			Host:     "localhost",
 			Port:     5432,
@@ -45,7 +47,7 @@ func defaultConfig() Config {
 	}
 }
 
-func InitViper() *viper.Viper {
+func initViper() *viper.Viper {
 	defaultConfig := defaultConfig()
 
 	v := viper.New()
@@ -58,7 +60,7 @@ func InitViper() *viper.Viper {
 	v.SetConfigName("config")
 	v.AddConfigPath(".")
 	v.SetConfigType("toml")
-	slog.Debug("Config file name", "value", v.ConfigFileUsed())
+	log.Debug().Msgf("Config file name: %s", v.ConfigFileUsed())
 
 	flagSet := pflag.NewFlagSet("config", pflag.ExitOnError)
 
@@ -89,24 +91,23 @@ func InitViper() *viper.Viper {
 }
 
 func ReadConfig() (*viper.Viper, error) {
-	v := InitViper()
+	v := initViper()
 	err := v.ReadInConfig()
 
 	if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-		slog.Warn("Config file not found; creating a new one")
+		log.Warn().Msg("Config file not found; creating a new one")
 		v.SafeWriteConfig()
 		err = nil
 	} else if err != nil {
-		slog.Error("Error reading config file", "error", err)
+		log.Error().Err(err).Msg("Error reading config file")
 		return nil, err
 	}
 
 	return v, err
 }
 
-func ParseLogLevel(level string) (slog.Level, error) {
-	var logLevel slog.Level
-	err := logLevel.UnmarshalText([]byte(level))
+func ParseLogLevel(level string) (zerolog.Level, error) {
+	logLevel, err := zerolog.ParseLevel(level)
 	return logLevel, err
 }
 
@@ -118,4 +119,9 @@ func wordSepNormalizeFunc(f *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ToLower(name)
 	}
 	return pflag.NormalizedName(name)
+}
+
+func InitLogger() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
 }

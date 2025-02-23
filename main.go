@@ -1,60 +1,65 @@
 package main
 
 import (
-	"log/slog"
 	"os"
 	"time"
 
 	"github.com/Dhs92/GoFish/config"
+	"github.com/Dhs92/GoFish/logger"
 	"github.com/fsnotify/fsnotify"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
 	// Setup logging
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	logger.InitLogger()
 
 	// Init config handler from Viper
 	configHandler, err := config.ReadConfig()
 
 	if err != nil {
-		slog.Error("Error reading config", "error", err)
+		log.Error().Err(err).Msg("Error reading config")
 		os.Exit(1)
 	}
 
 	// Set log level from config
 	logLevel, err := config.ParseLogLevel(configHandler.GetString("logLevel"))
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
-
 	if err != nil {
-		slog.Error("Error parsing log level", "error", err)
+		log.Error().Err(err).Msg("Error parsing log level")
+	} else {
+		zerolog.SetGlobalLevel(logLevel)
 	}
 
-	slog.Info("Setting up logging", "logLevel", logLevel.String())
+	log.Info().Str("logLevel", logLevel.String()).Msg("Setting up logging")
 
-	slog.Debug("ListenAddr", "listenAddr", configHandler.GetString("listenAddr"))
-	slog.Debug("ListenPort", "listenPort", configHandler.GetInt("listenPort"))
-	slog.Debug("LogLevel:", "logLevel", configHandler.GetString("logLevel"))
-	slog.Debug("Database.Host:", "database.host", configHandler.GetString("database.host"))
-	slog.Debug("Database.Port:", "database.port", configHandler.GetInt("database.port"))
-	slog.Debug("Database.User:", "database.user", configHandler.GetString("database.user"))
-	slog.Debug("Database.Name:", "database.name", configHandler.GetString("database.name"))
-	slog.Debug("Viper config: ", "config", configHandler.AllSettings())
+	log.Debug().Str("server.host", configHandler.GetString("server.host")).Msg("")
+	log.Debug().Int("server.port", configHandler.GetInt("server.port")).Msg("")
+	log.Debug().Str("logLevel", configHandler.GetString("logLevel")).Msg("")
+	log.Debug().Str("database.host", configHandler.GetString("database.host")).Msg("")
+	log.Debug().Int("database.port", configHandler.GetInt("database.port")).Msg("")
+	log.Debug().Str("database.user", configHandler.GetString("database.user")).Msg("")
+	log.Debug().Str("database.name", configHandler.GetString("database.name")).Msg("")
+	log.Debug().Interface("config", configHandler.AllSettings()).Msg("")
 
 	configHandler.OnConfigChange(func(e fsnotify.Event) {
-		slog.Info("Config file changed:", "file", e.Name)
+		log.Info().Str("file", e.Name).Msg("Config file changed")
 		logLevel, err := config.ParseLogLevel(configHandler.GetString("logLevel"))
 		if err != nil {
-			slog.Error("Error parsing log level", "error", err)
+			log.Error().Err(err).Msg("Error parsing log level")
+		} else {
+			log.Debug().Str("logLevel", logLevel.String()).Msg("Setting log level")
+			zerolog.SetGlobalLevel(logLevel)
 		}
-		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
 	})
 	configHandler.WatchConfig()
+
 	for {
-		slog.Info("Sleeping for 5 seconds")
-		slog.Debug("Debug message")
-		slog.Warn("Warning message")
-		slog.Error("Error message")
-		slog.Info("Info message")
+		log.Info().Msg("Sleeping for 5 seconds")
+		log.Debug().Msg("Debug message")
+		log.Warn().Msg("Warning message")
+		log.Error().Msg("Error message")
+		log.Info().Msg("Info message")
 		time.Sleep(5 * time.Second)
 	}
 }

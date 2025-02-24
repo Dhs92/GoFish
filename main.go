@@ -24,7 +24,7 @@ func main() {
 	}
 
 	// Set log level from config
-	logLevel, err := config.ParseLogLevel(configHandler.GetString("logLevel"))
+	logLevel, err := config.ParseLogLevel(configHandler.GetString(config.LOGLEVEL))
 	if err != nil {
 		log.Error().Err(err).Msg("Error parsing log level")
 	} else {
@@ -33,22 +33,22 @@ func main() {
 
 	log.Info().Str("logLevel", logLevel.String()).Msg("Setting up logging")
 
-	log.Debug().Str("server.host", configHandler.GetString("server.host")).Msg("")
-	log.Debug().Int("server.port", configHandler.GetInt("server.port")).Msg("")
-	log.Debug().Str("logLevel", configHandler.GetString("logLevel")).Msg("")
-	log.Debug().Str("database.host", configHandler.GetString("database.host")).Msg("")
-	log.Debug().Int("database.port", configHandler.GetInt("database.port")).Msg("")
-	log.Debug().Str("database.user", configHandler.GetString("database.user")).Msg("")
-	log.Debug().Str("database.name", configHandler.GetString("database.name")).Msg("")
+	log.Debug().Str("server.host", configHandler.GetString(config.SERVERHOST)).Msg("")
+	log.Debug().Int("server.port", configHandler.GetInt(config.SERVERPORT)).Msg("")
+	log.Debug().Str("logLevel", configHandler.GetString(config.LOGLEVEL)).Msg("")
+	log.Debug().Str("database.host", configHandler.GetString(config.DATABASEHOST)).Msg("")
+	log.Debug().Int("database.port", configHandler.GetInt(config.DATABASEPORT)).Msg("")
+	log.Debug().Str("database.user", configHandler.GetString(config.DATABASEUSER)).Msg("")
+	log.Debug().Str("database.name", configHandler.GetString(config.DATABASENAME)).Msg("")
 	log.Debug().Interface("config", configHandler.AllSettings()).Msg("")
 
 	configHandler.OnConfigChange(func(e fsnotify.Event) {
 		log.Info().Str("file", e.Name).Msg("Config file changed")
-		logLevel, err := config.ParseLogLevel(configHandler.GetString("logLevel"))
+		logLevel, err := config.ParseLogLevel(configHandler.GetString(config.LOGLEVEL))
 		if err != nil {
 			log.Error().Err(err).Msg("Error parsing log level")
 		} else {
-			log.Debug().Str("logLevel", logLevel.String()).Msg("Setting log level")
+			log.Debug().Str(config.LOGLEVEL, logLevel.String()).Msg("Setting log level")
 			zerolog.SetGlobalLevel(logLevel)
 		}
 	})

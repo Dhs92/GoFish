@@ -11,6 +11,18 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Config keys
+const (
+	LOGLEVEL         string = "logLevel"
+	SERVERHOST       string = "server.host"
+	SERVERPORT       string = "server.port"
+	DATABASEHOST     string = "database.host"
+	DATABASEPORT     string = "database.port"
+	DATABASEUSER     string = "database.user"
+	DATABASEPASSWORD string = "database.password"
+	DATABASENAME     string = "database.name"
+)
+
 type Config struct {
 	LogLevel zerolog.Level  `json:"logLevel"`
 	Server   ServerConfig   `json:"server"`

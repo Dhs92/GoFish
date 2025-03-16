@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -15,7 +16,7 @@ type User struct {
 	ID          bson.ObjectID `bson:"_id,omitempty"` // MongoDB ObjectID
 	Name        string        `bson:"name,omitempty"`
 	Email       string        `bson:"email,omitempty"`
-	Password    string        `bson:"password,omitempty"`
+	Password    string        `bson:"password,omitempty" json:"-"`
 	CreatedDate bson.DateTime `bson:"createdDate,omitempty"`
 	Settings    UserSettings  `bson:"settings,omitempty"`
 	Enabled     bool          `bson:"enabled,omitempty"`
@@ -38,6 +39,7 @@ func (u *User) ObjectID() bson.ObjectID {
 }
 
 func VerifyEmail(email string) bool {
+	log.Debug().Str("email", email).Msg("Verifying email address")
 	_, err := mail.ParseAddress(email)
 	return err == nil
 }

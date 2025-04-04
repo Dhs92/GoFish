@@ -1,65 +1,101 @@
 package main
 
 import (
-	"os"
-	"time"
-
-	"github.com/Dhs92/GoFish/config"
-	"github.com/Dhs92/GoFish/logger"
+	"fmt"
+	"github.com/Dhs92/GoFish/internal/models"
+	"github.com/Dhs92/GoFish/internal/repository"
+	"github.com/Dhs92/GoFish/internal/service"
+	"github.com/Dhs92/GoFish/pkg"
 	"github.com/fsnotify/fsnotify"
+	"github.com/glebarez/sqlite" // Importing the SQLite driver for GORM
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"os"
+	// Importing the logger package from GORM
 )
 
 func main() {
-	// Setup logging
-	logger.InitLogger()
-
 	// Init config handler from Viper
-	configHandler, err := config.ReadConfig()
+	configHandler, err := pkg.ReadConfig()
 
 	if err != nil {
 		log.Error().Err(err).Msg("Error reading config")
 		os.Exit(1)
 	}
 
-	// Set log level from config
-	logLevel, err := config.ParseLogLevel(configHandler.GetString(config.LOGLEVEL))
+	var configFile pkg.Config
+
+	err = configHandler.Unmarshal(&configFile)
+
 	if err != nil {
-		log.Error().Err(err).Msg("Error parsing log level")
-	} else {
-		zerolog.SetGlobalLevel(logLevel)
+		log.Error().Err(err).Msg("Error unmarshalling config")
+		os.Exit(1)
 	}
 
-	log.Info().Str("logLevel", logLevel.String()).Msg("Setting up logging")
+	// Setup logging
+	pkg.InitLogger(configFile.LogFormat)
 
-	log.Debug().Str("server.host", configHandler.GetString(config.SERVERHOST)).Msg("")
-	log.Debug().Int("server.port", configHandler.GetInt(config.SERVERPORT)).Msg("")
-	log.Debug().Str("logLevel", configHandler.GetString(config.LOGLEVEL)).Msg("")
-	log.Debug().Str("database.host", configHandler.GetString(config.DATABASEHOST)).Msg("")
-	log.Debug().Int("database.port", configHandler.GetInt(config.DATABASEPORT)).Msg("")
-	log.Debug().Str("database.user", configHandler.GetString(config.DATABASEUSER)).Msg("")
-	log.Debug().Str("database.name", configHandler.GetString(config.DATABASENAME)).Msg("")
-	log.Debug().Interface("config", configHandler.AllSettings()).Msg("")
+	logLevel, err := zerolog.ParseLevel(configFile.LogLevel)
+
+	if err != nil {
+		log.Error().Err(err).Msg("Error parsing log level")
+		os.Exit(1)
+	}
+	zerolog.SetGlobalLevel(logLevel) // Set the global log level
+
+	log.Info().Str("logLevel", configFile.LogLevel).Msg("Setting up logging")
+
+	//TODO: Condense the database connection logic into a single function
+
+	var conn gorm.Dialector
+	if configFile.Database.Driver == "sqlite" {
+		conn = sqlite.Open("gofish.db")
+	} else if configFile.Database.Driver == "postgres" {
+		conn = postgres.Open(fmt.Sprintf("postgres://%s:%s@%s:%v/%s", configFile.Database.User, configFile.Database.Password, configFile.Database.Host, configFile.Database.Port, configFile.Database.Name))
+	}
+	db, err := gorm.Open(conn, &gorm.Config{Logger: pkg.NewGormLogger()})
+
+	// GORM will log the error if the connection fails, this will bail if the connection fails
+	if err != nil {
+		os.Exit(1)
+	}
+
+	// Automatically migrate the database schema for the models
+	// TODO: Condense the migration logic into a single function
+	err = db.AutoMigrate(&models.User{}, &models.Livestock{}, &models.Tank{}, &models.StockItem{}, &models.ScheduleItem{})
+	if err != nil {
+		log.Error().Err(err).Msg("Error auto migrate")
+		os.Exit(1)
+	}
+
+	userService := service.NewUserService(repository.NewGormUserRepository(db), log.Logger)
+	newUserID, _ := userService.CreateUser("John", "john@test.com", "password123", models.RoleUser)
+
+	// TODO: Create tank service
+	db.Save(models.NewTank(*newUserID, "Main Tank", 100, "gal"))
+	db.Save(models.NewTank(*newUserID, "Main Tank", 100, "gal"))
 
 	configHandler.OnConfigChange(func(e fsnotify.Event) {
+		err = configHandler.ReadInConfig()
+		if err != nil {
+			log.Error().Err(err).Msg("Error reading config after change")
+		}
+		err = configHandler.Unmarshal(&configFile) // Reload the config file
+		if err != nil {
+			log.Error().Err(err).Msg("Error unmarshalling config after change")
+			return
+		}
+
 		log.Info().Str("file", e.Name).Msg("Config file changed")
-		logLevel, err := config.ParseLogLevel(configHandler.GetString(config.LOGLEVEL))
+		logLevel, err := zerolog.ParseLevel(configFile.LogLevel)
 		if err != nil {
 			log.Error().Err(err).Msg("Error parsing log level")
 		} else {
-			log.Debug().Str(config.LOGLEVEL, logLevel.String()).Msg("Setting log level")
+			log.Debug().Str("logLevel", pkg.LogLevel).Msg("Setting log level")
 			zerolog.SetGlobalLevel(logLevel)
 		}
 	})
 	configHandler.WatchConfig()
-
-	for {
-		log.Info().Msg("Sleeping for 5 seconds")
-		log.Debug().Msg("Debug message")
-		log.Warn().Msg("Warning message")
-		log.Error().Msg("Error message")
-		log.Info().Msg("Info message")
-		time.Sleep(5 * time.Second)
-	}
 }

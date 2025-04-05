@@ -6,6 +6,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type SizeUnit string
+
+const (
+	SizeGal   SizeUnit = "gallon"
+	SizeLiter SizeUnit = "liter"
+)
+
 type Tank struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primaryKey"`
 	UserID    uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_user_name,priority:1"` // Reference to Users.UserID
@@ -14,11 +21,11 @@ type Tank struct {
 	CreatedAt time.Time  `gorm:"not null"`
 	UpdatedAt time.Time  `gorm:"not null"`
 	Size      float64    `gorm:"not null"`
-	SizeUnit  string     `gorm:"not null"` // gal, liter, etc // Ensures that the combination of UserID and Name is unique
+	SizeUnit  SizeUnit   `gorm:"not null"` // gal, liter, etc // Ensures that the combination of UserID and Name is unique
 	DeletedAt *time.Time // soft delete
 }
 
-func NewTank(ownerID uuid.UUID, name string, size float64, sizeUnit string) *Tank {
+func NewTank(ownerID uuid.UUID, name string, size float64, sizeUnit SizeUnit) *Tank {
 	return &Tank{
 		ID:       uuid.New(),
 		UserID:   ownerID,

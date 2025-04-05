@@ -10,6 +10,8 @@ import (
 	"net/mail"
 )
 
+//TODO: Document
+
 type UserService struct {
 	db     repository.UserRepository
 	logger zerolog.Logger
@@ -27,7 +29,7 @@ func (us *UserService) CreateUser(name string, email string, password string, ro
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
 		us.logger.Error().Err(err).Msg("Error hashing password")
-		return nil, fmt.Errorf("error hashing password: %v", err)
+		return nil, fmt.Errorf("error hashing password: %w", err)
 	}
 
 	if !validateEmail(email) {
@@ -47,7 +49,7 @@ func (us *UserService) CreateUser(name string, email string, password string, ro
 	))
 	if err != nil {
 		us.logger.Error().Err(err).Msg("Error creating/updating user")
-		return nil, fmt.Errorf("error creating user: %v", err)
+		return nil, fmt.Errorf("error creating user: %w", err)
 	}
 
 	us.logger.Info().Str("user_id", id.String()).Msg("User created")
@@ -55,11 +57,25 @@ func (us *UserService) CreateUser(name string, email string, password string, ro
 	return &id, nil
 }
 
+func (us *UserService) FindUser(id uuid.UUID) (*models.User, error) {
+	user, err := us.db.FindByID(id)
+
+	if err != nil {
+		us.logger.Error().Err(err).Msg("Error finding user")
+		return nil, fmt.Errorf("error finding user: %w", err)
+	} else if user == nil {
+		us.logger.Error().Str("user_id", id.String()).Msg("Find User by ID returned Nil")
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return user, nil
+}
+
 func (us *UserService) UpdateUser(user *models.User) error {
 	err := us.db.Update(user)
 	if err != nil {
 		us.logger.Error().Err(err).Msg("Error updating user")
-		return fmt.Errorf("error updating user: %v", err)
+		return fmt.Errorf("error updating user: %w", err)
 	}
 
 	us.logger.Info().Msg("User updated")
@@ -72,7 +88,7 @@ func (us *UserService) DeleteUser(user *models.User) error {
 
 	if err != nil {
 		us.logger.Error().Err(err).Msg("Error deleting user")
-		return fmt.Errorf("error deleting user: %v", err)
+		return fmt.Errorf("error deleting user: %w", err)
 	}
 
 	us.logger.Info().Str("user_id", user.ID.String()).Msg("User deleted")
@@ -84,7 +100,7 @@ func (us *UserService) GetAll() (*[]models.User, error) {
 	users, err := us.db.GetAll()
 	if err != nil {
 		us.logger.Error().Err(err).Msg("Error getting all users")
-		return nil, fmt.Errorf("error getting all users: %v", err)
+		return nil, fmt.Errorf("error getting all users: %w", err)
 	}
 
 	return users, nil
@@ -94,7 +110,7 @@ func (us *UserService) VerifyPassword(user *models.User, password string) error 
 	passed, err := argon2.VerifyEncoded([]byte(password), []byte(user.Password))
 	if err != nil {
 		us.logger.Error().Err(err).Msg("Error verifying password")
-		return fmt.Errorf("error verifying password: %v", err)
+		return fmt.Errorf("error verifying password: %w", err)
 	}
 
 	if !passed {

@@ -21,10 +21,6 @@ type Livestock struct {
 	DeletedAt *time.Time // soft delete
 }
 
-type LivestockCreate interface {
-	Create(tankID uuid.UUID, name string, livestockType string, size *float64, sizeUnit *string, birthday *time.Time, colors *string) error
-}
-
 func NewLivestock(tankID uuid.UUID, name string, livestockType string, size *float64, sizeUnit *string, birthday *time.Time, colors *string) *Livestock {
 	return &Livestock{
 		ID:       uuid.New(),
